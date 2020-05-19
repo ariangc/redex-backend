@@ -258,7 +258,7 @@ int main(){
 	mt19937 rng(chrono::steady_clock::now().time_since_epoch().count());	
 	read_data();
 	//print_data();
-	int n_tests = 100;
+	int n_tests = 1000;
 	int src = rng()%n_airp, snk = src;
 	while(src == snk) snk = rng()%n_airp;
 
