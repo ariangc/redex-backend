@@ -222,43 +222,86 @@ void print_preconditions(){
 	if(badAirport != -1) cout << "Closed Airport: " << airports[badAirport].city << endl;
 }
 
+int result;
 int dist[N], on_air[N];
-int p[N];
+vector<int> p;
+int total_flight, total_wait;
 
-int dijkstra(int arrival, int src, int snk){
-	for(int i = 0; i < n_airp; ++ i) dist[i] = INF, on_air[i] = INF, p[i] = -1;
-	priority_queue<ii, vector<ii>, greater<ii>> pq;
-	dist[src] = on_air[src] = 0; pq.push({dist[src], src});
-	while(!pq.empty()){
-		ii fr = pq.top(); pq.pop();
-		int d = fr.first, u = fr.second;
-		if(d > dist[u]) continue;
-		int current_time = (arrival + d) % 1440;
-		for(auto vv: adj[u]){
-			int to = vv.itm1, start_time = vv.itm2, duration = vv.itm3;
-			if(to == badAirport) continue; //Shutdown on this airport
-			int flight_id = flightId[u][to][start_time];
-			
-			int wait_time = getTotal(current_time, start_time); // Wait time
-			if(flightIssues[flight_id] == -1) continue; //Cancelled Flight
-			else wait_time += flightIssues[flight_id];
+void construct_solution(int arrival, int src, int snk, int &flight_time, int &wait_time, vector<int> &parents){
+    mt19937 rng(chrono::steady_clock::now().time_since_epoch().count());	
+    for(int i = 0; i < n_airp; ++ i) dist[i] = INF, on_air[i] = INF;
+    parents.assign(n_airp, -1);
+    flight_time = wait_time = 0;
+    queue<int> q;
+    dist[src] = on_air[src] = 0; q.push(src);
+    while(!q.empty()){
+        int u = q.front(); q.pop();
+        cout << u << endl;
+        int d = dist[u];
+        int current_time = (arrival + d) % 1440;
+        vector<ii> candidates;
+        int denominator = 0;
+        for(auto vv: adj[u]){
+            int to = vv.itm1, start_time = vv.itm2, duration = vv.itm3;
+            if(to == badAirport) continue;
+            int flight_id = flightId[u][to][start_time];
+            
+            int wait_time = getTotal(current_time, start_time);
 
-			if(dist[to] > dist[u] + wait_time + duration){
-				dist[to] = dist[u] + wait_time + duration;
-				on_air[to] = on_air[u] + duration;
-				p[to] = u;
-				pq.push({dist[to], to});
-			}
-		}
-	}
-	return dist[snk];
+            if(flightIssues[flight_id] == -1) continue;
+            else wait_time += flightIssues[flight_id];
+
+            if(dist[to] == INF) {
+                printf("Candidate for %d: %d\n", u, to);
+                candidates.push_back({flight_id, wait_time + duration});        
+                denominator += wait_time + duration;
+            }
+        }
+        vector<int> picker;
+        for(int i = 0; i < sz(candidates); ++ i){
+            for(int cnt = 0; cnt < denominator - candidates[i].second; ++ cnt)
+                picker.push_back(i);
+        }
+        random_shuffle(picker.begin(), picker.end());
+        int chosen = picker[rng()%sz(picker)];
+        int cur_flight = 0;
+        for(auto vv: adj[u]){
+            if(vv.itm1 == chosen){
+                cur_flight = vv.itm3;
+                break; 
+            }
+        }
+        for(int i = 0; i < sz(candidates); ++ i){
+            if(candidates[i].first == chosen){
+                dist[chosen] = d + candidates[i].second;
+                parents[chosen] = u;
+                on_air[chosen] = on_air[u] + cur_flight; 
+                q.push(chosen);
+            }
+        }
+    }
+    flight_time = on_air[snk];
+    wait_time = dist[snk] - flight_time;
+}
+
+void GRASP(int arrival, int src, int snk){
+    for(int times = 0; times < n_airp; ++ times){
+        vector<int> parents;
+        int flight_time, wait_time;
+        construct_solution(arrival, src, snk, flight_time, wait_time, parents);
+        int total_time = flight_time + wait_time;
+        if(total_time < result){
+            result = total_time;
+            p = parents;
+        }
+    }
 }
 
 int main(){
 	mt19937 rng(chrono::steady_clock::now().time_since_epoch().count());	
 	read_data();
 	//print_data();
-	int n_tests = 100;
+	int n_tests = 1;
 	int src = rng()%n_airp, snk = src;
 	while(src == snk) snk = rng()%n_airp;
 
@@ -268,7 +311,9 @@ int main(){
 		apply_preconditions();
 		print_preconditions();
 		int arrival = rng()%1440;
-		int result = dijkstra(arrival, src, snk);
+		
+        result = INF;
+        GRASP(arrival, src, snk);
 		
 		int cur = snk;
 		vector<int> route;
