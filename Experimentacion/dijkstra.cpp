@@ -144,10 +144,10 @@ void print_data(){
 	cout << "Total direct flights: " << sz(mapa) << endl;
 }
 
-const bool non_direct = true; //true = No direct flights
-const int shutdown_prob = 1; //1 out of 1000
-const int cancel_prob = 70; //1.3%
-const int delay_prob = 24; //24.38%
+bool non_direct = true; //true = No direct flights
+const int shutdown_prob = 10; //1 out of 1000
+const int cancel_prob = 25; //1.3%
+const int delay_prob = 25; //24.38%
 
 int flightIssues[M]; //-1 if cancelled, > 0 if delayed
 
@@ -267,6 +267,7 @@ int main(){
 
 	cerr << "Origin,Destination,N_flights,Flight_time,Wait_time,Total_time,Exec_time" << endl;
 	while(n_tests > 0){
+		non_direct = rng()%2;
 		set_preconditions(src, snk);
 		apply_preconditions();
 		print_preconditions();

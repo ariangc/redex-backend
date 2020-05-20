@@ -148,10 +148,10 @@ void print_data(){
 	cout << "Total direct flights: " << sz(mapa) << endl;
 }
 
-const bool non_direct = true; //true = No direct flights
+bool non_direct = true; //true = No direct flights
+const int delay_prob = 70;
+const int cancel_prob = 25; //1.3%
 const int shutdown_prob = 1; //1 out of 1000
-const int cancel_prob = 70; //1.3%
-const int delay_prob = 24; //24.38%
 
 int flightIssues[M]; //-1 if cancelled, > 0 if delayed
 
@@ -230,6 +230,7 @@ void print_preconditions(){
 
 int dist[N], on_air[N];
 int p[N];
+int h_cost[N][N];
 
 int getHeuristic(int from, int to){ //orthodomic
     double lat1 = airports[from].lat, lon1 = airports[from].lon;
@@ -260,7 +261,7 @@ int astar(int arrival, int src, int snk){
 			if(flightIssues[flight_id] == -1) continue; //Cancelled Flight
 			else wait_time += flightIssues[flight_id];
 
-         int heuristic_cost = getHeuristic(to, snk);
+         int heuristic_cost = h_cost[to][snk];
 			//printf("%d\n", heuristic_cost);
 			if(dist[to] > dist[u] + wait_time + duration){
 				dist[to] = dist[u] + wait_time + duration;
@@ -305,8 +306,11 @@ int dijkstra(int arrival, int src, int snk){
 
 
 int main(){
-	mt19937 rng(chrono::steady_clock::now().time_since_epoch().count());	
+	mt19937 rng(chrono::steady_clock::now().time_since_epoch().count());
 	read_data();
+	for(int i = 0; i < N; ++ i)
+		for(int j = 0; j < N; ++ j)
+			h_cost[i][j] = getHeuristic(i, j);
 	//print_data();
 	int n_tests = 1000;
 	int src = rng()%n_airp, snk = src;
@@ -314,6 +318,7 @@ int main(){
 
 	cout << "Origin,Destination,Total_time1,Total_time2,Exec_time1,Exec_time2" << endl;
 	while(n_tests > 0){
+		non_direct = rng()%2;
 		set_preconditions(src, snk);
 		apply_preconditions();
 		//print_preconditions();
