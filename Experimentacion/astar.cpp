@@ -1,5 +1,4 @@
 #include <bits/stdc++.h>
-#include <sys/time.h> 
 using namespace std;
 #define sz(x) int(x.size())
 typedef pair<int, int> ii;
@@ -14,10 +13,15 @@ const int INF = 1e9; //Infinity
 // Airport struct used to store airport data 
 struct Airport{
 	string icao, continent, country, city, code;
+    double lon, lat;
 	Airport(){}
 	Airport(vector<string> &v){
 		icao = v[0], continent = v[1], country = v[2];
 		city = v[3], code = v[4];
+        string::size_type sz_lon = v[5].size();
+        string::size_type sz_lat = v[6].size();
+        lon = stod(v[5], &sz_lon) * acos(-1) / 180.0L;
+        lat = stod(v[6], &sz_lat) * acos(-1) / 180.0L;
 	}
 };
 
@@ -104,9 +108,9 @@ void read_data(){
 	string ig; getline(cin, ig);
 	for(int idx = 0; idx < n_airp; ++ idx){
 		vector<string> v;
-		for(int j = 0; j < 5; ++ j) {
+		for(int j = 0; j < 7; ++ j) {
 			string str; 
-			char sep = (j == 4 ? '\n' : ',');
+			char sep = (j == 6 ? '\n' : ',');
 			getline(cin,str, sep);
 			v.push_back(str);
 		}
@@ -227,30 +231,42 @@ void print_preconditions(){
 int dist[N], on_air[N];
 int p[N];
 
-int dijkstra(int arrival, int src, int snk){
+int getHeuristic(int from, int to){ //orthodomic
+    double lat1 = airports[from].lat, lon1 = airports[from].lon;
+    double lat2 = airports[to].lat, lon2 = airports[to].lon;
+	 //printf("%lf %lf %lf %lf\n", lat1, lon1, lat2, lon2);
+	 double res = sin(lat1)*sin(lat2) + cos(lat1)*cos(lat2) - cos(lon2 - lon1); 
+    //printf("%lf\n", acos(res));
+	 return ceil(3963.0 * acos(res));
+}
+
+
+int astar(int arrival, int src, int snk){
 	for(int i = 0; i < n_airp; ++ i) dist[i] = INF, on_air[i] = INF, p[i] = -1;
-	priority_queue<ii, vector<ii>, greater<ii>> pq;
-	dist[src] = on_air[src] = 0; pq.push({dist[src], src});
+	priority_queue<T, vector<T>, greater<T>> pq;
+	dist[src] = on_air[src] = 0; pq.push(T(0, 0, src));
 	while(!pq.empty()){
-		ii fr = pq.top(); pq.pop();
-		int d = fr.first, u = fr.second;
+		T fr = pq.top(); pq.pop();
+		int d = fr.itm2, u = fr.itm3;
 		if(d > dist[u]) continue;
 		int current_time = (arrival + d) % 1440;
 		for(auto vv: adj[u]){
 			int to = vv.itm1, start_time = vv.itm2, duration = vv.itm3;
-			if(to == badAirport) continue; //Shutdown on this airport
 			if(non_direct && u == src && to == snk) continue;
+			if(to == badAirport) continue; //Shutdown on this airport
 			int flight_id = flightId[u][to][start_time];
 			
 			int wait_time = getTotal(current_time, start_time); // Wait time
 			if(flightIssues[flight_id] == -1) continue; //Cancelled Flight
 			else wait_time += flightIssues[flight_id];
 
+         int heuristic_cost = getHeuristic(to, snk);
+			//printf("%d\n", heuristic_cost);
 			if(dist[to] > dist[u] + wait_time + duration){
 				dist[to] = dist[u] + wait_time + duration;
 				on_air[to] = on_air[u] + duration;
 				p[to] = u;
-				pq.push({dist[to], to});
+				pq.push(T(dist[to] + heuristic_cost, dist[to], to));
 			}
 		}
 	}
@@ -260,7 +276,7 @@ int dijkstra(int arrival, int src, int snk){
 int main(){
 	mt19937 rng(chrono::steady_clock::now().time_since_epoch().count());	
 	read_data();
-	//print_data();
+	print_data();
 	int n_tests = 1000;
 	int src = rng()%n_airp, snk = src;
 	while(src == snk) snk = rng()%n_airp;
@@ -269,13 +285,11 @@ int main(){
 	while(n_tests > 0){
 		set_preconditions(src, snk);
 		apply_preconditions();
-		print_preconditions();
+		//print_preconditions();
 		int arrival = rng()%1440;
-
-		clock_t start,end;
-		start = clock();
-		int result = dijkstra(arrival, src, snk);
-
+		clock_t start = clock();
+		int result = astar(arrival, src, snk);
+		
 		int cur = snk;
 		vector<int> route;
 		while(cur != src){
@@ -284,14 +298,31 @@ int main(){
 		}
 		route.push_back(cur);
 		reverse(route.begin(), route.end());
-		int flight_time = on_air[snk], wait_time = result - on_air[snk];
+		clock_t end = clock();
+		//Pretty format to stdout
+
+		cout << getHour(arrival) << " From " << airports[src].city << "(" << airports[src].icao << ") ";
+		cout <<"to " << airports[snk].city << "(" << airports[snk].icao << "): ";
+		if(result != INF) cout << result << " minutes" << endl;
+		else cout << "IMPOSSIBLE" << endl;
+		int flight_time = on_air[snk];
+		int wait_time = result - on_air[snk];
+		cout << "Flight time: " << flight_time << "minutes" << endl;
+		cout << "Wait time: " << wait_time << "minutes" << endl;
 		
-		end = clock();
+		cout << "Route: ";
+		for(int i = 0; i < sz(route); ++ i){
+			cout << airports[route[i]].city;
+			if(i == sz(route) - 1) cout << endl;
+			else cout << " -> ";
+		}
 
 		//CSV to stderr
 		cerr << airports[src].icao << "," << airports[snk].icao << "," << sz(route)-1 << "," << flight_time << ",";
 		cerr << wait_time << "," << result << "," << fixed << setprecision(3) << double(end - start)*1000.0/double(CLOCKS_PER_SEC) << endl;
-		
+
+
+
 
 		reverse_preconditions();
 		n_tests--;

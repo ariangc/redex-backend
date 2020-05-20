@@ -236,10 +236,10 @@ void construct_solution(int arrival, int src, int snk, int &flight_time, int &wa
     dist[src] = on_air[src] = 0; q.push(src);
     while(!q.empty()){
         int u = q.front(); q.pop();
-        cout << u << endl;
+        if(u == snk) break;
         int d = dist[u];
         int current_time = (arrival + d) % 1440;
-        vector<ii> candidates;
+        vector<T> candidates;
         int denominator = 0;
         for(auto vv: adj[u]){
             int to = vv.itm1, start_time = vv.itm2, duration = vv.itm3;
@@ -251,37 +251,43 @@ void construct_solution(int arrival, int src, int snk, int &flight_time, int &wa
             if(flightIssues[flight_id] == -1) continue;
             else wait_time += flightIssues[flight_id];
 
-            if(dist[to] == INF) {
+            if(dist[to] == INF){
                 printf("Candidate for %d: %d\n", u, to);
-                candidates.push_back({flight_id, wait_time + duration});        
+                candidates.push_back({flight_id, wait_time, duration});
                 denominator += wait_time + duration;
             }
         }
-        vector<int> picker;
+        vector<int> picker(sz(candidates));
+		int total = 0;
         for(int i = 0; i < sz(candidates); ++ i){
-            for(int cnt = 0; cnt < denominator - candidates[i].second; ++ cnt)
-                picker.push_back(i);
-        }
-        random_shuffle(picker.begin(), picker.end());
-        int chosen = picker[rng()%sz(picker)];
-        int cur_flight = 0;
-        for(auto vv: adj[u]){
-            if(vv.itm1 == chosen){
-                cur_flight = vv.itm3;
-                break; 
-            }
-        }
+            picker[i] = denominator - (candidates[i].itm3 + candidates[i].itm2);
+			total += picker[i];
+		}
+		int random_sum = rng()%total + 1;
+		int chosen_idx = -1;
+		int acum = 0;
+		for(int i = 0; i < sz(picker); ++ i){
+			acum += picker[i];
+			if(acum >= total){
+				chosen_idx = i; break;
+			}
+		}
+		T chosen = candidates[chosen_idx];
+        int nxt = chosen.itm1, cur_flight = chosen.itm3;
         for(int i = 0; i < sz(candidates); ++ i){
-            if(candidates[i].first == chosen){
-                dist[chosen] = d + candidates[i].second;
+            if(candidates[i].itm1 == nxt){
+				int chosen = flightInfo[nxt].itm2;
+                dist[chosen] = d + (candidates[i].itm2 + candidates[i].itm3);
                 parents[chosen] = u;
                 on_air[chosen] = on_air[u] + cur_flight; 
                 q.push(chosen);
             }
         }
     }
+	
     flight_time = on_air[snk];
     wait_time = dist[snk] - flight_time;
+	cout << flight_time << " " << wait_time << endl;
 }
 
 void GRASP(int arrival, int src, int snk){
